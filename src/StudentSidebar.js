@@ -1,7 +1,8 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { FaHome, FaCalendarAlt, FaEnvelope, FaUser, FaQuestionCircle, FaSignOutAlt } from "react-icons/fa";
+import { FaHome, FaCalendarAlt, FaEnvelope, FaUser, FaSignOutAlt } from "react-icons/fa"; //FaQuestionCircle
 import VULogo from "./vu-logo.png";
+
 
 const StudentSidebar = ({ onLogout }) => {
     return (
@@ -19,7 +20,7 @@ const StudentSidebar = ({ onLogout }) => {
                         { to: "/student-calendar", label: "Calendar/Events", icon: <FaCalendarAlt /> },
                         { to: "/student-messages", label: "Messages", icon: <FaEnvelope /> },
                         { to: "/student-profile", label: "Profile Settings", icon: <FaUser /> },
-                        { to: "/student-help", label: "Help", icon: <FaQuestionCircle /> },
+                        {/* to: "/student-help", label: "Help", icon: <FaQuestionCircle /> */ },
                     ].map((item, index) => (
                         <li key={index}>
                             <NavLink
@@ -52,3 +53,5 @@ const StudentSidebar = ({ onLogout }) => {
 };
 
 export default StudentSidebar;
+
+//This is my StudentSidebar. I want the Calendar/Events to display calender and Events as created by the admin

@@ -14,6 +14,13 @@ import Students from "./AdminStudents";
 import ProtectedRoute from "./ProtectedRoute";
 import "./index.css";
 import ForgotPassword from "./ForgotPassword";
+import StudentCalendar from "./StudentCalendar";
+import StudentMessages from "./StudentMessages";
+import StudentSettings from "./StudentSettings";
+
+import LecturerTimetable from "./LecturerTimetable";
+import LecturerReports from "./LecturerReports";
+import LecturerSettings from "./LecturerSettings";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
@@ -27,15 +34,17 @@ root.render(
       <Route path="/admin-students" element={<Students />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
+      <Route path="/student-calendar" element={<StudentCalendar />} />
+      <Route path="/student-messages" element={<StudentMessages />} />
+      <Route path="/student-profile" element={<StudentSettings />} />
+
+      <Route path="/lecturer-timetable" element={<LecturerTimetable />} />
+      <Route path="/lecturer-reports" element={<LecturerReports />} />
+      <Route path="/settings" element={<LecturerSettings />} />
+
+
       {/* Protecting dashboard routes */}
-      <Route
-        path="/admin-dashboard"
-        element={
-          <ProtectedRoute role="admin">
-            <AdminDashboard />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/admin-dashboard" element={<ProtectedRoute role="admin"> <AdminDashboard /></ProtectedRoute>} />
       <Route
         path="/lecturer-dashboard"
         element={
@@ -60,6 +69,8 @@ root.render(
           </ProtectedRoute>
         }
       />
+
+
       <Route
         path="/settings"
         element={

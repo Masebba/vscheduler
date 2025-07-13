@@ -17,7 +17,7 @@ const Students = () => {
         regNumber: "",
         email: "",
         phone: "",
-        // These fields are auto-populated from the registration number:
+        // auto-populated fields from the registration number:
         course: "",
         intakeYear: "",
         intakeMonth: "",
@@ -42,7 +42,7 @@ const Students = () => {
     });
 
     // Assign Course Module modal state.
-    // Note: We use "field" to refer to the course/field of study as used in Course Management.
+    // We use "field" to refer to the course/field of study as used in Course Management.
     const [assignCourseData, setAssignCourseData] = useState({
         faculty: "",
         field: "",
@@ -284,7 +284,7 @@ const Students = () => {
             }));
 
             // Find students matching the cohort criteria.
-            // Note: We compare assignCourseData.field with student.course.
+            // ...compare assignCourseData.field with student.course.
             const studentsToUpdate = studentList.filter((student) => {
                 return (
                     student.faculty === assignCourseData.faculty &&

@@ -14,7 +14,7 @@ function App() {
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
 
-  // 🔹 Check if user is already logged in
+  // Check if user is already logged in
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -33,24 +33,20 @@ function App() {
 
     return () => unsubscribe();
   }, [navigate]);
-
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
-      // 🔹 Fetch user role from Firestore
+      // Fetch user role from Firestore
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) {
         const userRole = userDoc.data().role;
-
-        // 🔹 Store login session if 'Remember Me' is checked
+        // Store login session if 'Remember Me' is checked
         if (rememberMe) {
           localStorage.setItem("user", JSON.stringify({ uid: user.uid, role: userRole }));
         }
-
-        // 🔹 Redirect based on role
+        // Redirect based on role
         if (userRole === "admin") navigate("/admin-dashboard");
         else if (userRole === "lecturer") navigate("/lecturer-dashboard");
         else navigate("/student-dashboard");

@@ -64,7 +64,7 @@ const AdminTimetable = () => {
             const lecturerAssignments = await fetchLecturerAssignments();
             // Combine timetable events with student and lecturer assignments
             setCombinedAssignments([
-                ...timetableEvents,
+                //    ...timetableEvents,
                 ...studentAssignments,
                 ...lecturerAssignments
             ]);
@@ -414,3 +414,5 @@ const AdminTimetable = () => {
 };
 
 export default AdminTimetable;
+
+//When I create an event as an admin, it should be displayed to the lecturer and student's side. The created event shouldnt display under the assignments

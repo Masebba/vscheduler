@@ -74,7 +74,7 @@ function SignUp() {
                     email,
                     regNumber,
                     ...parsedData,
-                    // You can add more fields (e.g., phone, trimester, block) if needed.
+                    // ...can add more fields (e.g., phone, trimester, block) if needed.
                 });
                 // Redirect to Student Dashboard
                 navigate("/student-dashboard");

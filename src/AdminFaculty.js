@@ -21,23 +21,18 @@ export default function AdminFaculty() {
 
   // Redirect if not authenticated
   useEffect(() => {
-    if (!user) {
-      navigate("/");
-    }
+    if (!user) navigate("/");
   }, [user, navigate]);
 
-  // State declarations
+  // State
   const [lecturers, setLecturers] = useState([]);
   const [courses, setCourses] = useState([]);
   const [assignments, setAssignments] = useState([]);
-
   const [facultyFilter, setFacultyFilter] = useState("");
   const [lecturerFilter, setLecturerFilter] = useState("");
   const [moduleFilter, setModuleFilter] = useState("");
   const [codeSelections, setCodeSelections] = useState([]);
   const [showCodeDialog, setShowCodeDialog] = useState(false);
-
-  const [block, setBlock] = useState("");
   const [room, setRoom] = useState("");
   const [timeSlot, setTimeSlot] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -47,7 +42,6 @@ export default function AdminFaculty() {
   [50, 60, 70, 80].forEach(level => {
     for (let r = 1; r <= 8; r++) roomOptions.push(`${level}${r}`);
   });
-
   const timeOptions = [
     { value: "Day-Morning", label: "Day 08:00–12:00" },
     { value: "Day-Afternoon", label: "Day 14:00–16:30" },
@@ -57,30 +51,30 @@ export default function AdminFaculty() {
     { value: "Wknd-Evening", label: "Weekend 18:00–20:00" }
   ];
 
-  const blockOptions = ["Block 1", "Block 2", "Block 3", "Block 4"];
-
-  // Load data once
+  // Load data
   useEffect(() => {
     (async () => {
-      const uSnap = await getDocs(collection(db, "users"));
+      const userSnap = await getDocs(collection(db, "users"));
       setLecturers(
-        uSnap.docs
+        userSnap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(u => u.role === "lecturer")
       );
-
-      const cSnap = await getDocs(collection(db, "courses"));
-      setCourses(cSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-
-      const aSnap = await getDocs(collection(db, "lecturers"));
-      setAssignments(aSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const courseSnap = await getDocs(collection(db, "courses"));
+      setCourses(courseSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const assignSnap = await getDocs(collection(db, "lecturers"));
+      setAssignments(assignSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     })();
   }, []);
 
   // Derived lists
   const faculties = [...new Set(lecturers.map(l => l.faculty))];
   const modules = [...new Set(courses.map(c => c.name))];
-  const codesForModule = courses.filter(c => c.name === moduleFilter);
+  // match modules case-insensitive
+  const codesForModule = courses
+    // case-insensitive match: include any course whose name includes the filter
+    .filter(c => c.name.toLowerCase().includes(moduleFilter.trim().toLowerCase()))
+    .map(c => ({ id: c.id, code: c.code }));
 
   // Toggle code selection
   const toggleCode = id =>
@@ -88,124 +82,94 @@ export default function AdminFaculty() {
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
 
-  // Conflict checks
-  const hasRoomTimeConflict = async (r, t) => {
-    const q = query(
+  // Conflict check for room/time and lecturer
+  const hasConflict = async () => {
+    if (!room || !timeSlot) return false;
+    // room/time
+    const roomQ = query(
       collection(db, "lecturers"),
-      where("room", "==", r),
-      where("timeSlot", "==", t)
+      where("room", "==", room),
+      where("timeSlot", "==", timeSlot)
     );
-    const snap = await getDocs(q);
-    return !snap.empty;
+    const roomSnap = await getDocs(roomQ);
+    if (!roomSnap.empty && !editingId) return true;
+    // lecturer time clash
+    const timeQ = query(
+      collection(db, "lecturers"),
+      where("lecturerId", "==", lecturerFilter),
+      where("timeSlot", "==", timeSlot)
+    );
+    const timeSnap = await getDocs(timeQ);
+    if (timeSnap.docs.some(d => d.id !== editingId)) return true;
+    return false;
   };
 
-  const hasTimeConflict = async (lectId, t) => {
-    const q = query(
-      collection(db, "lecturers"),
-      where("lecturerId", "==", lectId),
-      where("timeSlot", "==", t)
-    );
-    const snap = await getDocs(q);
-    return snap.docs.filter(d => d.id !== editingId).length > 0;
-  };
-
-  const hasBlockConflict = async (lectId, blk) => {
-    const q = query(
-      collection(db, "lecturers"),
-      where("lecturerId", "==", lectId),
-      where("block", "==", blk)
-    );
-    const snap = await getDocs(q);
-    const count = editingId
-      ? snap.docs.filter(d => d.id !== editingId).length
-      : snap.size;
-    return count >= 3;
-  };
-
-  // Save or update assignment
+  // Save (OK)
   const handleSave = async () => {
     if (
-      !facultyFilter ||
-      !lecturerFilter ||
-      !moduleFilter ||
-      codeSelections.length === 0 ||
-      !block ||
-      !room ||
-      !timeSlot
+      !facultyFilter || !lecturerFilter || !moduleFilter ||
+      codeSelections.length === 0 || !room || !timeSlot
     ) {
-      return alert("Please complete all fields.");
+      return alert("Please complete all fields & select codes.");
     }
-
-    if (await hasRoomTimeConflict(room, timeSlot) && !editingId) {
-      return alert("Room/Time is already booked.");
+    if (await hasConflict()) {
+      return alert("Conflict detected for room or lecturer time.");
     }
-
-    if (await hasTimeConflict(lecturerFilter, timeSlot)) {
-      return alert("This lecturer already has a class at that time.");
-    }
-
-    if (await hasBlockConflict(lecturerFilter, block)) {
-      return alert("Lecturer is overloaded.");
-    }
-
+    // perform add or update
     const lect = lecturers.find(l => l.id === lecturerFilter);
     const batch = [];
-
     for (let cid of codeSelections) {
-      const m = courses.find(c => c.id === cid);
+      const mod = courses.find(c => c.id === cid);
       const data = {
         lecturerId: lect.id,
         lecturerName: `${lect.firstName} ${lect.lastName}`,
         faculty: lect.faculty,
-        course: m.name,
-        courseCode: m.code,
-        block,
+        course: mod.name,
+        courseCode: mod.code,
         room,
         timeSlot
       };
-
       if (editingId) {
         await updateDoc(doc(db, "lecturers", editingId), data);
-        setAssignments(a => a.map(x => (x.id === editingId ? { ...x, ...data } : x)));
+        setAssignments(a => a.map(x => x.id === editingId ? { ...x, ...data } : x));
       } else {
         const ref = await addDoc(collection(db, "lecturers"), data);
         batch.push({ id: ref.id, ...data });
       }
     }
-
     if (batch.length) setAssignments(a => [...a, ...batch]);
-
-    // Reset form
+    // reset
     setFacultyFilter("");
     setLecturerFilter("");
     setModuleFilter("");
     setCodeSelections([]);
-    setBlock("");
     setRoom("");
     setTimeSlot("");
     setShowCodeDialog(false);
     setEditingId(null);
   };
 
-  // Begin editing an existing assignment
-  const startEdit = a => {
-    setEditingId(a.id);
-    setFacultyFilter(a.faculty);
-    setLecturerFilter(a.lecturerId);
-    setModuleFilter(a.course);
-    setCodeSelections(courses.filter(c => c.name === a.course).map(c => c.id));
-    setBlock(a.block);
-    setRoom(a.room);
-    setTimeSlot(a.timeSlot);
+  // Start edit
+  const startEdit = item => {
+    setEditingId(item.id);
+    setFacultyFilter(item.faculty);
+    setLecturerFilter(item.lecturerId);
+    setModuleFilter(item.course);
+    setCodeSelections(
+      courses.filter(c => c.name === item.course).map(c => c.id)
+    );
+    setRoom(item.room);
+    setTimeSlot(item.timeSlot);
     setShowCodeDialog(true);
   };
 
-  // Delete assignment
+  // Delete
   const handleDelete = async id => {
     await deleteDoc(doc(db, "lecturers", id));
     setAssignments(a => a.filter(x => x.id !== id));
   };
 
+  // Logout
   const logout = () => signOut(auth).then(() => navigate("/"));
 
   return (
@@ -216,52 +180,87 @@ export default function AdminFaculty() {
 
         {/* Filters */}
         <div className="mb-4 flex flex-wrap gap-2 items-center">
-          <select className="border p-1" value={facultyFilter} onChange={e => setFacultyFilter(e.target.value)}>
+          <select
+            className="border p-1"
+            value={facultyFilter}
+            onChange={e => setFacultyFilter(e.target.value)}
+          >
             <option value="">Filter Faculty</option>
             {faculties.map(f => <option key={f} value={f}>{f}</option>)}
           </select>
 
-          <select className="border p-1" disabled={!facultyFilter} value={lecturerFilter} onChange={e => setLecturerFilter(e.target.value)}>
+          <select
+            className="border p-1"
+            disabled={!facultyFilter}
+            value={lecturerFilter}
+            onChange={e => setLecturerFilter(e.target.value)}
+          >
             <option value="">Select Lecturer</option>
-            {lecturers.filter(l => l.faculty === facultyFilter).map(l => <option key={l.id} value={l.id}>{l.firstName} {l.lastName}</option>)}
+            {lecturers
+              .filter(l => l.faculty === facultyFilter)
+              .map(l => <option key={l.id} value={l.id}>{l.firstName} {l.lastName}</option>)}
           </select>
 
-          <select className="border p-1" disabled={!facultyFilter} value={moduleFilter} onChange={e => setModuleFilter(e.target.value)}>
+          <select
+            className="border p-1"
+            disabled={!facultyFilter}
+            value={moduleFilter}
+            onChange={e => setModuleFilter(e.target.value)}
+          >
             <option value="">Select Module</option>
             {modules.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
 
-          <select className="border p-1" value={block} onChange={e => setBlock(e.target.value)}>
-            <option value="">Select Block</option>
-            {blockOptions.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-
-          <select className="border p-1" value={room} onChange={e => setRoom(e.target.value)}>
+          <select
+            className="border p-1"
+            value={room}
+            onChange={e => setRoom(e.target.value)}
+          >
             <option value="">Select Room</option>
             {roomOptions.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
 
-          <select className="border p-1" value={timeSlot} onChange={e => setTimeSlot(e.target.value)}>
+          <select
+            className="border p-1"
+            value={timeSlot}
+            onChange={e => setTimeSlot(e.target.value)}
+          >
             <option value="">Select Time</option>
             {timeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
 
-          {moduleFilter && <button onClick={() => setShowCodeDialog(true)} className="bg-gray-300 px-2 py-1 rounded">Module Codes</button>}
+          {moduleFilter && (
+            <button
+              onClick={() => setShowCodeDialog(true)}
+              className="bg-gray-300 px-2 py-1 text-sm rounded"
+            >Module Codes</button>
+          )}
         </div>
 
         {/* Code Dialog */}
         {showCodeDialog && (
           <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center">
             <div className="bg-white p-4 rounded shadow-lg w-80 max-h-96 overflow-auto">
-              <h3 className="font-semibold mb-2">Select Codes for {moduleFilter}</h3>
+              <h3 className="font-semibold mb-2">Codes for {moduleFilter}</h3>
               {codesForModule.map(c => (
                 <label key={c.id} className="flex items-center mb-1">
-                  <input type="checkbox" checked={codeSelections.includes(c.id)} onChange={() => toggleCode(c.id)} className="mr-2" />{c.code}
+                  <input
+                    type="checkbox"
+                    checked={codeSelections.includes(c.id)}
+                    onChange={() => toggleCode(c.id)}
+                    className="mr-2"
+                  />{c.code}
                 </label>
               ))}
               <div className="mt-4 text-right">
-                <button onClick={() => setShowCodeDialog(false)} className="mr-2 px-3 py-1 border rounded">Cancel</button>
-                <button onClick={handleSave} className="bg-blue-600 text-white px-3 py-1 rounded">OK</button>
+                <button
+                  onClick={() => setShowCodeDialog(false)}
+                  className="mr-2 px-3 py-1 border rounded"
+                >Cancel</button>
+                <button
+                  onClick={handleSave}
+                  className="bg-blue-600 text-white px-3 py-1 rounded"
+                >OK</button>
               </div>
             </div>
           </div>
@@ -271,7 +270,13 @@ export default function AdminFaculty() {
         <table className="w-full text-sm border-collapse border border-gray-300">
           <thead>
             <tr className="bg-gray-200">
-              <th className="border p-1">Lecturer</th><th className="border p-1">Faculty</th><th className="border p-1">Code</th><th className="border p-1">Module</th><th className="border p-1">Block</th><th className="border p-1">Room</th><th className="border p-1">Time</th><th className="border p-1">Actions</th>
+              <th className="border p-1">Lecturer</th>
+              <th className="border p-1">Faculty</th>
+              <th className="border p-1">Code</th>
+              <th className="border p-1">Module</th>
+              <th className="border p-1">Room</th>
+              <th className="border p-1">Time</th>
+              <th className="border p-1">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -281,10 +286,12 @@ export default function AdminFaculty() {
                 <td className="border p-1">{a.faculty}</td>
                 <td className="border p-1">{a.courseCode}</td>
                 <td className="border p-1">{a.course}</td>
-                <td className="border p-1">{a.block}</td>
                 <td className="border p-1">{a.room}</td>
                 <td className="border p-1">{timeOptions.find(t => t.value === a.timeSlot)?.label}</td>
-                <td className="border p-1 space-x-1"><button onClick={() => startEdit(a)} className="bg-yellow-500 text-white px-2 py-1 text-xs rounded">Edit</button><button onClick={() => handleDelete(a.id)} className="bg-red-500 text-white px-2 py-1 text-xs rounded">Del</button></td>
+                <td className="border p-1 space-x-1">
+                  <button onClick={() => startEdit(a)} className="bg-yellow-500 text-white px-2 py-1 text-xs rounded mr-1">Edit</button>
+                  <button onClick={() => handleDelete(a.id)} className="bg-red-500 text-white px-2 py-1 text-xs rounded">Del</button>
+                </td>
               </tr>
             ))}
           </tbody>
